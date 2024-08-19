@@ -94,6 +94,7 @@ struct Channel {
 };
 
 struct Song {
+    float tempo;
     std::vector<Pattern> patterns;
     std::vector<Channel> channels;
 };
@@ -108,6 +109,7 @@ struct ChannelState {
     float beat = 0;
 
     float timeFactor = 0;
+    float phase = 0;
     float frequency = 0;
     float intensity = 0;
 
@@ -120,14 +122,14 @@ struct ChannelState {
 };
 
 #define MAX_DELAY 120000
-#define DELAY (SAMPLE_RATE / 2)
+#define DELAY (12000)
 
 struct Delay {
     std::array<float, MAX_DELAY> samples;
     size_t head = 0;
     float wet = 0.5;
     float dry = 0.5;
-    float feedback = 0.3;
+    float feedback = 0.5;
 
     void reset() {
         for (auto i = 0; i < MAX_DELAY; i++) {
@@ -143,7 +145,7 @@ struct Delay {
         samples[head] = feedback * (output + left);
 
         left = left * dry + output * wet;
-        right = right * dry * output * wet;
+        right = right * dry + output * wet;
 
         head++;
     }
@@ -166,6 +168,7 @@ struct Engine {
     float time;
     float beat;
     float* lastBuffer = nullptr;
+    bool isPlaying = false;
     bool isPaused = false;
 //    float note;
 //    float tick;
@@ -182,11 +185,16 @@ struct Engine {
     {}
 
     void play() {
+        if (isPlaying) {
+            return;
+        }
+
         if (isPaused) {
             isPaused = false;
             return;
         }
 
+        isPlaying = true;
         channels.clear();
         size_t i = 0;
         for (const auto& channel : song.channels) {
@@ -201,10 +209,11 @@ struct Engine {
     }
 
     void pause() {
-        isPaused = true;
+        isPaused = !isPaused;
     }
 
     void stop() {
+        isPlaying = false;
         isPaused = false;
         delay.reset();
 
@@ -217,7 +226,7 @@ struct Engine {
         timeIndex += 1;
         time = float(timeIndex) / SAMPLE_RATE;
 
-        beat = time * 120.0 / 60.0;
+        beat = time * song.tempo / 60.0;
 
         for (auto& state: channels) {
             auto c = song.channels[state.channel];
@@ -230,29 +239,30 @@ struct Engine {
                 const auto& patternTable = song.channels[state.channel].patternIndex;
                 state.currentPattern = (state.currentPattern + 1) % patternTable.size();
                 state.nextNote = state.nextPattern = true;
-                state.noteStart = state.patternStart = floor(b);
-
+                state.patternStart = floor(b);
+                state.noteStart = time;
+                state.phase = 0;
                 p = song.patterns[state.currentPattern];
 //                printf("t[%.3f] b[%.3f] New pattern: %zu\n", time, b, state.currentPattern);
             }
 
             auto note = floor(b - state.patternStart);
-            if (note != state.currentNote) {
-                state.noteStart = floor(b);
-                state.currentNote = note;
-//                printf("t[%.3f] b[%.3f] New note: %.1f\n", time, beat, note);
-            }
-
             const auto& n = p.notes[note];
-//            state.oscillator = n.oscillator;
+
             state.frequency = frequency(n.note, n.octave);
             state.intensity = n.intensity;
+            state.phase += 2 * M_PI * state.frequency / SAMPLE_RATE;
+
+            if (note != state.currentNote) {
+                state.noteStart = time; // floor(b);
+                state.currentNote = note;
+                state.phase = 0;
+            }
         }
     }
 
     void fillBuffer(AudioQueueRef queue, AudioQueueBufferRef buffer) {
         float* audioData = (float*)buffer->mAudioData;
-        
         for (auto i = 0; i < BUFFER_SIZE; i += 2) {
             if (isPaused) {
                 audioData[i] = audioData[i+1] = 0;
@@ -261,26 +271,28 @@ struct Engine {
             }
             float l = 0, r = 0;
             for (const auto& state: channels) {
-                auto relativeBeat = state.beat;
-                float position = relativeBeat - state.noteStart;
+                float position = (time - state.noteStart) * song.tempo / 60.0f;
                 float intensity = state.intensity;
 
                 if (position < 0.1) {
-                    intensity *= pow((position / 0.1), 3);
+                    float factor = pow((position / 0.1), 3);
+                    intensity *= factor;
                 }
 
                 if (position > 0.95) {
-                    intensity *= 1.0 - fmax(pow(((position - 0.95) / 0.05), 3), 0);
+                    float factor = 1.0 - fmax(pow(((position - 0.95) / 0.05), 3), 0);
+                    intensity *= factor;
                 }
 
                 float raw = 0;
+                float phase = state.phase; // (time - state.noteStart) * 2 * M_PI * state.frequency;
                 if (state.oscillator == Oscillator::Sine) {
-                    raw = cos(position * 2 * M_PI * state.frequency);
+                    raw = sin(phase);
                 } else if (state.oscillator == Oscillator::Square) {
-                    float sine = cos(position * 2 * M_PI * state.frequency);;
+                    float sine = cos(phase);
                     raw = (sine >= 0) - (sine <= 0);
                 } else if (state.oscillator == Oscillator::Noise) {
-                    float sine = cos(position * 2 * M_PI * state.frequency);;
+                    float sine = cos(phase);
                     raw = (sine >= 0) - (sine <= 0);
                 }
                 float sample = raw * intensity;
@@ -292,10 +304,6 @@ struct Engine {
             float mr = r / channels.size();
 
             delay.mix(ml, mr);
-//
-//            if (fabs(l + 1.0) < .001 || fabs(r + 1.0) < .001) {
-//                printf("Aha! %.3f %.3f\n", l, r);
-//            }
 
             audioData[i] = ml;
             audioData[i+1] = mr;
