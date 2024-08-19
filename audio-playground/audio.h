@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cmath>
 
+#include <thread>
 #include <vector>
 
 #include <AudioToolbox/AudioQueue.h>
@@ -285,14 +286,14 @@ struct Engine {
                 }
 
                 float raw = 0;
-                float phase = state.phase; // (time - state.noteStart) * 2 * M_PI * state.frequency;
+                float phase = state.phase;
                 if (state.oscillator == Oscillator::Sine) {
                     raw = sin(phase);
                 } else if (state.oscillator == Oscillator::Square) {
-                    float sine = cos(phase);
+                    float sine = sin(phase);
                     raw = (sine >= 0) - (sine <= 0);
                 } else if (state.oscillator == Oscillator::Noise) {
-                    float sine = cos(phase);
+                    float sine = sin(phase);
                     raw = (sine >= 0) - (sine <= 0);
                 }
                 float sample = raw * intensity;

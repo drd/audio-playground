@@ -9,11 +9,11 @@
 
 std::vector<Pattern> patterns = {
     { .notes = {
-        { Note::A, 3, 0.7f },
-        { Note::A, 3, 0.0f },
-//        { Note::B, 3, 0.3f, 0.5f },
-//        { Note::C, 3, 0.5f, 0.5f },
-//        { Note::A, 3, 0.7f },
+        { Note::A, 2, 0.7f },
+        { Note::A, 2, 0.0f },
+        { Note::B, 2, 0.3f, 0.5f },
+        { Note::C, 2, 0.5f, 0.5f },
+        { Note::A, 2, 0.7f },
     } },
     { .notes = {
         { Note::G, 3, 0.7f },
@@ -56,7 +56,7 @@ std::vector<Channel> channels = {
     {
         .patternIndex = {2, 0, 1},
         .oscillator = Oscillator::Square,
-        .timeFactor = 1.0f
+        .timeFactor = 2.0f
     },
     {
         .patternIndex = {3, 2},
@@ -66,7 +66,7 @@ std::vector<Channel> channels = {
 };
 
 Song song = {
-    .tempo = 10.0f,
+    .tempo = 120.0f,
     .patterns = patterns,
     .channels = channels
 };

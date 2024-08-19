@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+let queue = DispatchSerialQueue(label: "audio")
+
 struct ContentView: View {
 
     @State
@@ -15,7 +17,7 @@ struct ContentView: View {
     @State
     var samples: [Float] = []
 
-    let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
+    let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack {
@@ -25,7 +27,9 @@ struct ContentView: View {
             Text("Synthesizer World!")
             HStack {
                 Button(action: {
-                    synthPlay()
+                    queue.async {
+                        synthPlay()
+                    }
                 }, label: {
                     HStack {
                         Image(systemName: "play")
@@ -34,7 +38,9 @@ struct ContentView: View {
                 })
 
                 Button(action: {
-                    synthPause()
+                    queue.async {
+                        synthPause()
+                    }
                 }, label: {
                     HStack {
                         Image(systemName: "pause")
@@ -43,7 +49,9 @@ struct ContentView: View {
                 })
 
                 Button(action: {
-                    synthStop()
+                    queue.async {
+                        synthStop()
+                    }
                 }, label: {
                     HStack {
                         Image(systemName: "stop")
