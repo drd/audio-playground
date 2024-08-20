@@ -123,11 +123,12 @@ struct ChannelState {
 };
 
 #define MAX_DELAY 120000
-#define DELAY (12000)
+#define DELAY (42000)
 
 struct Delay {
     std::array<float, MAX_DELAY> samples;
-    size_t head = 0;
+    size_t head1 = 0;
+    size_t head2 = DELAY / 2;
     float wet = 0.5;
     float dry = 0.5;
     float feedback = 0.5;
@@ -139,28 +140,22 @@ struct Delay {
     }
 
     void mix(float& left, float& right) {
-        head %= DELAY;
+        head1 %= DELAY;
+        head2 %= DELAY;
 
-        float output = samples[head];
+        float output1 = samples[head1];
+        float output2 = samples[head2] * feedback;
 
-        samples[head] = feedback * (output + left);
+        samples[head1] = feedback * (0.5 * (output1 + output2) + 0.5 * (left + right));
+//        samples[head2] = feedback * (0.25 * (output1 + output2 + left + right));
+
+        float output = (output1 + output2) / 0.75;
 
         left = left * dry + output * wet;
         right = right * dry + output * wet;
 
-        head++;
-    }
-
-    void mix(float* buffer, size_t sampleCount) {
-        for (auto i = 0; i < sampleCount; i += 2) {
-            head %= DELAY;
-            float output = samples[head];
-            float input = feedback * (output + buffer[i]);
-            buffer[i] = dry * buffer[i] + wet * output;
-            buffer[i + 1] += dry * buffer[i + 1] + wet * output;
-            samples[head] = input;
-            head++;
-        }
+        head1++;
+        head2++;
     }
 };
 
@@ -293,12 +288,14 @@ struct Engine {
                     float sine = sin(phase);
                     raw = (sine >= 0) - (sine <= 0);
                 } else if (state.oscillator == Oscillator::Noise) {
-                    float sine = sin(phase);
-                    raw = (sine >= 0) - (sine <= 0);
+                    float sine = cos(phase);
+                    raw = ((sine >= 0) - (sine <= 0)) * (2 * M_PI - fmod(phase, 2 * M_PI)) / (2 * M_PI);
                 }
                 float sample = raw * intensity;
-                l += sample;
-                r += sample;
+
+                float pan = 0.5 + 0.25 * (sin(time * 3 * state.channel + state.channel) + 1.0);
+                l += sample * pan;
+                r += sample * (1.0 - pan);
             }
 
             float ml = l / channels.size();

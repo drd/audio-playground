@@ -60,37 +60,35 @@ struct ContentView: View {
                 })
             }
 
-            ScrollView(.horizontal) {
-                Canvas { context, size in
-                    DispatchQueue.main.async {
-                        self.width = size.width
-                    }
+            Canvas { context, size in
+                DispatchQueue.main.async {
+                    self.width = size.width
+                }
 
-                    if (samples.count < Int(width) || samples.count == 0) {
-                        return
-                    }
+                if (samples.count < Int(width) || samples.count == 0) {
+                    return
+                }
 
-                    let baseline = size.height / 2
+                let baseline = size.height / 2
 
-                    let wave = Path { p in
-                        p.move(
+                let wave = Path { p in
+                    p.move(
+                        to: CGPoint(
+                            x: 0,
+                            y: baseline + CGFloat(samples[0]) * size.height / 2
+                        )
+                    )
+                    for i in 1..<Int(width) {
+                        p.addLine(
                             to: CGPoint(
-                                x: 0,
-                                y: baseline + CGFloat(samples[0]) * size.height / 2
+                                x: CGFloat(i),
+                                y: baseline + CGFloat(samples[i]) * size.height / 2
                             )
                         )
-                        for i in 1..<Int(width) {
-                            p.addLine(
-                                to: CGPoint(
-                                    x: CGFloat(i),
-                                    y: baseline + CGFloat(samples[i]) * size.height / 2
-                                )
-                            )
-                        }
                     }
+                }
 
-                    context.stroke(wave, with: .color(.blue))
-                }.frame(width: 4096)
+                context.stroke(wave, with: .color(.blue))
             }
         }
         .padding()
@@ -105,8 +103,14 @@ struct ContentView: View {
                 }
 
                 for i in 0 ..< Int(width) {
-                    let s = CGFloat(i) / width * CGFloat(num)
-                    samples[i] = rawSamples[i * 2] // Int(s)]
+                    let s: Float = Float(i) / Float(width) * Float(num - 1)
+                    let f1 = s.truncatingRemainder(dividingBy: 1)
+                    let f2 = 1 - f1
+
+                    let s1 = f1 * rawSamples[Int(s)]
+                    let s2 = f2 * rawSamples[Int(s) + 2]
+
+                    samples[i] = 0.5 * (s1 + s2) // (rawSamples[i * 2] + rawSamples[i * 2 + 1]) // Int(s)]
                 }
             }
         }
